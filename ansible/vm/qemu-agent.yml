@@ -1,0 +1,20 @@
+- hosts:
+  - cloudimg
+  become: yes
+
+  tasks:
+  - name: Update and upgrade apt packages
+    apt:
+      upgrade: yes
+      update_cache: yes
+      
+  - name: check that qemu-guest-agent is installed
+    ansible.builtin.package:
+      name: qemu-guest-agent
+      state: present
+
+  - name: check that qemu-guest-agent is enabled and running
+    ansible.builtin.service:
+      name: qemu-guest-agent
+      enabled: true
+      state: started

@@ -1,0 +1,22 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: netboot-xyz
+  namespace: netboot-xyz
+  annotations:
+    kubernetes.io/ingress.class: traefik-external
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`xyz.bauer.mt`)
+      kind: Rule
+      services:
+        - name: netboot-xyz
+          port: 3000
+      # middlewares:
+      #   - name: default-headers
+      # leave undefined to use the default headers in default namespace
+  # tls:
+  #   secretName: jimsgarage-tls # change to your cert name
+  # leave undefined to use the traefik default cert (wildcard is present)

@@ -1,0 +1,64 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: meshcentral
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: meshcentral
+    app.kubernetes.io/name: meshcentral
+  name: meshcentral
+  namespace: meshcentral
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: meshcentral
+  template:
+    metadata:
+      labels:
+        app: meshcentral
+    spec:
+      containers:
+        - image: typhonragewind/meshcentral:1.1.22
+          imagePullPolicy: Always
+          name: meshcentral
+          ports:
+            - containerPort: 8086
+              name: meshcentral-ssl
+              protocol: TCP
+            - containerPort: 4433
+              name: meshcentral-cir
+              protocol: TCP
+          env:
+            - name: TZ
+              value: "America/Denver"
+            - name: HOSTNAME
+              value: "meshcentral.bauer.mt"
+            - name: REVERSE_PROXY
+              value: "192.168.80.100"
+            - name: REVERSE_PROXY_TLS_PORT
+              value: "443"
+            - name: IFRAME
+              value: "false"
+            - name: ALLOW_NEW_ACCOUNTS
+              value: "false"
+            - name: WEBRTC
+              value: "true"
+          volumeMounts:
+            - name: meshcentral-data
+              mountPath: /opt/meshcentral/meshcentral-data
+            - name: meshcentral-files
+              mountPath: /opt/meshcentral/meshcentral-files
+      restartPolicy: Always
+      volumes:
+        - name: meshcentral-data
+          hostPath:
+            path: /k8s-hostpath/meshcentral-data
+            type: Directory
+        - name: meshcentral-files
+          hostPath:
+            path: /k8s-hostpath/meshcentral-files
+            type: Directory

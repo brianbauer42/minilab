@@ -1,0 +1,88 @@
+--- # set up account for brian
+- name: User Setup
+  become: yes
+  hosts:
+    - docker
+    - pve
+
+  vars:
+    username: brian
+    githubname: brianbauer42
+
+  # TODO: Set account password in vault? https://stackoverflow.com/questions/19292899/creating-a-new-user-and-password-with-ansible
+
+  pre_tasks:
+    - name: Update and upgrade apt packages
+      apt:
+        upgrade: yes
+        update_cache: yes
+
+    - name: Install useful packages
+      ansible.builtin.package:
+        name:
+          - zsh
+          - git
+          - vim
+          - curl
+          - wget
+        state: present
+
+    - name: Create user w/ default shell ZSH
+      user:
+        name: "{{ username }}"
+        shell: /bin/zsh
+        state: present
+
+    - name: Creates .ssh directory
+      file:
+        path: "/home/{{ username }}/.ssh"
+        state: directory
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        mode: 0600
+
+    - name: Download SSH keys from github
+      ansible.builtin.get_url:
+        url: "https://github.com/{{ githubname }}.keys"
+        dest: "/home/{{ username }}/.ssh/authorized_keys"
+
+    - name: set permissons for authorized keys
+      ansible.builtin.file:
+        path: "/home/{{ username }}/.ssh/authorized_keys"
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        mode: "644"
+
+    - name: set permissons for .ssh directory
+      ansible.builtin.file:
+        path: "/home/{{ username }}/.ssh"
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        mode: "700"
+
+    - name: Add user to sudo group
+      user:
+        name: "{{ username }}"
+        groups: sudo
+        append: yes
+
+  roles:
+    - role: gantsign.oh-my-zsh
+      users:
+        - username: "{{ username }}"
+          oh_my_zsh:
+            theme: homelab-server
+            plugins:
+              - git
+              - colorize
+              - jsontools
+              - docker
+              - docker-compose
+            update_mode: reminder
+            update_frequency: 3
+
+  post_tasks:
+    - name: Download custom prompt for oh-my-zsh
+      get_url:
+        url: "https://raw.githubusercontent.com/brianbauer42/minilab/main/ansible/files/homelab-server.zsh-theme"
+        dest: "/home/{{ username }}/.oh-my-zsh/custom/themes/homelab-server.zsh-theme"

@@ -1,0 +1,10 @@
+- hosts:
+  - cloudimg
+  become: yes
+
+  tasks:
+  - name: expand file system VM when drive size has changed
+    community.general.filesystem:
+      dev: /dev/sda1
+      resizefs: true
+      fstype: ext4

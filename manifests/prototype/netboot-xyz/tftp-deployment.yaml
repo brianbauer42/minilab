@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: netboot-xyz
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: netboot-xyz-tftp
+    app.kubernetes.io/name: netboot-xyz-tftp
+  name: netboot-xyz-tftp
+  namespace: netboot-xyz
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: netboot-xyz-tftp
+  template:
+    metadata:
+      labels:
+        app: netboot-xyz-tftp
+    spec:
+      containers:
+        - image: lscr.io/linuxserver/netbootxyz:tftp
+          imagePullPolicy: IfNotPresent
+          name: netboot-xyz-tftp
+          ports:
+            - containerPort: 69
+              name: nb-xyz-tftp
+              protocol: UDP
+          env:
+            - name: TZ
+              value: "America/Denver"
+          volumeMounts:
+            - name: netboot-xyz-config
+              mountPath: /config
+            - name: netboot-xyz-assets
+              mountPath: /assets
+      restartPolicy: Always
+      hostNetwork: true
+      volumes:
+        - name: netboot-xyz-config
+          hostPath:
+            path: /k8s-hostpath/netboot-xyz-config
+            type: Directory
+        - name: netboot-xyz-assets
+          hostPath:
+            path: /k8s-hostpath/netboot-xyz-assets
+            type: Directory
