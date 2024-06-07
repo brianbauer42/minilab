@@ -79,10 +79,10 @@ vPro Domain: amt.bauer.mt
 
 ```
 ansible-galaxy install -r ./ansible/requirements.yml
-ansible-playbook ./ansible/vm/cloud-img-tasks.yml -i ./ansible/inv
-ansible-playbook ./ansible/vm/qemu-agent.yml -i ./ansible/inv
-ansible-playbook ./ansible/vm/users.yml -i ./ansible/inv
-ansible-playbook ./ansible/vm/docker.yml -i ./ansible/inv
+ansible-playbook ./ansible/vm/cloud-img-tasks.yml -i ./ansible/hosts.ini
+ansible-playbook ./ansible/vm/qemu-agent.yml -i ./ansible/hosts.ini
+ansible-playbook ./ansible/vm/users.yml -i ./ansible/hosts.ini
+ansible-playbook ./ansible/vm/docker.yml -i ./ansible/hosts.ini
 ```
 
 # TODO ^ Make those proper roles

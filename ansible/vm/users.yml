@@ -33,32 +33,11 @@
         shell: /bin/zsh
         state: present
 
-    - name: Creates .ssh directory
-      file:
-        path: "/home/{{ username }}/.ssh"
-        state: directory
-        owner: "{{ username }}"
-        group: "{{ username }}"
-        mode: 0600
-
-    - name: Download SSH keys from github
-      ansible.builtin.get_url:
-        url: "https://github.com/{{ githubname }}.keys"
-        dest: "/home/{{ username }}/.ssh/authorized_keys"
-
-    - name: set permissons for authorized keys
-      ansible.builtin.file:
-        path: "/home/{{ username }}/.ssh/authorized_keys"
-        owner: "{{ username }}"
-        group: "{{ username }}"
-        mode: "644"
-
-    - name: set permissons for .ssh directory
-      ansible.builtin.file:
-        path: "/home/{{ username }}/.ssh"
-        owner: "{{ username }}"
-        group: "{{ username }}"
-        mode: "700"
+    - name: Add SSH keys from github
+      ansible.posix.authorized_key:
+        user: "{{ username }}"
+        state: present
+        key: "{{ lookup('url', 'https://github.com/{{ githubname }}.keys', split_lines=False) }}"
 
     - name: Add user to sudo group
       user:
