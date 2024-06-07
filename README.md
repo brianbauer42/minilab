@@ -66,6 +66,12 @@ vPro Domain: amt.bauer.mt
 1. create containers manually from debian template (ansible someday maybe)
 1. [create vm templates](https://pycvala.de/blog/proxmox/create-your-own-debian-12-cloud-init-template/) for Debian 12 / backports
 
+## Debian VM setup
+
+1. Clone template in proxmox and modify hardware config as needed.
+1. configure cloud-init for each node with a user 'ansible' and ssh keys for login
+1. Boot vm and use ansible to files system on disk (if enlarged) and update packages.
+
 ## Create VM from template for docker services
 
 1. Create VM from template, modify hard drive size, ssd, and resources.
@@ -98,12 +104,6 @@ export KUBECONFIG=/Users/brian/.kube/individual-configs/<configname1>:/Users/bri
 kubectl config view --flatten > one-config.yaml
 mv one-config ~/.kube/config
 ```
-
-## Debian VM setup
-
-1. Clone template in proxmox and modify hardware config as needed.
-1. configure cloud-init for each node with a user 'ansible' and ssh keys for login
-1. Boot vm and use ansible to files system on disk (if enlarged) and update packages.
 
 ## Talos linux
 
