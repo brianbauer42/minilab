@@ -18,5 +18,5 @@ spec:
       # middlewares:
       #   - name: default-headers
   # tls:
-  #   secretName: bauer-mt-tls
+  #   secretName: k3s-bauer-mt-tls
   # Omit secretName to use the default certificate

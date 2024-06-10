@@ -2,14 +2,13 @@
 - name: User Setup
   become: yes
   hosts:
-    - docker
+    - debian
     - pve
 
   vars:
     username: brian
     githubname: brianbauer42
-
-  # TODO: Set account password in vault? https://stackoverflow.com/questions/19292899/creating-a-new-user-and-password-with-ansible
+    keysurl: "https://github.com/{{ githubname }}.keys"
 
   pre_tasks:
     - name: Update and upgrade apt packages
@@ -25,6 +24,7 @@
           - vim
           - curl
           - wget
+          - acl #needed for ansible to set permissions on ssh keys
         state: present
 
     - name: Create user w/ default shell ZSH
@@ -37,7 +37,7 @@
       ansible.posix.authorized_key:
         user: "{{ username }}"
         state: present
-        key: "{{ lookup('url', 'https://github.com/{{ githubname }}.keys', split_lines=False) }}"
+        key: "{{ lookup('url', keysurl, split_lines=False) }}"
 
     - name: Add user to sudo group
       user:

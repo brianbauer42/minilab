@@ -37,7 +37,7 @@ Single node with 10gbe. Dual 2TB SSDs mirrored for cluster/app storage provided 
 | 192.168.70.0/24 | 2    | 1gb vpro ports on the mini pc      | UDMP        |
 | 192.168.80.0/24 | 3    | 2.5/10gb ports - data/prod network | Cheap 2.5gb |
 
-Service Domain: bauer.mt
+Service Domain: bzn.bauer.mt
 Management Domain mgmt.bauer.mt
 vPro Domain: amt.bauer.mt
 
@@ -51,17 +51,21 @@ vPro Domain: amt.bauer.mt
 | talos        | lab-03   | 192.168.80.18 | 192.168.70.18 | 192.168.70.58 | i5-10500T | 16g ddr4 |
 | talos        | lab-04   | 192.168.80.19 | 192.168.70.19 | 192.168.70.59 | i5-10500T | 16g ddr4 |
 
-| Service  | VM/CT | Hostname | Primary       | Secondary IP | Cores | Memory | Disk | Note                           |
-| -------- | ----- | -------- | ------------- | ------------ | ----- | ------ | ---- | ------------------------------ |
-| DNS      | CT    | pihole   | 192.168.80.3  | -            | 2     | 1G     | 10G  |                                |
-| Plex     | CT    | plex     | 192.168.80.81 | -            | 10    | 16G    | 60G  |                                |
-| Jellyfin | CT    | jellyfin | 192.168.80.82 | -            | 10    | 16G    | 60G  |                                |
-| Docker   | VM    | omni     | 192.168.80.80 | -            | 4     | 8G     | 100G | Sidero Omni, Auth, MeshCentral |
+| Service  | VM/CT | Hostname       | Primary       | Secondary IP | Cores | Memory | Disk | Note                                         |
+| -------- | ----- | -------------- | ------------- | ------------ | ----- | ------ | ---- | -------------------------------------------- |
+| DNS      | CT    | pihole         | 192.168.80.3  | -            | 2     | 1G     | 10G  |                                              |
+| Plex     | CT    | plex           | 192.168.80.81 | -            | 10    | 16G    | 60G  |                                              |
+| Jellyfin | CT    | jellyfin       | 192.168.80.82 | -            | 10    | 16G    | 60G  |                                              |
+| Omni     | VM    | omni           | 192.168.80.80 | -            | 4     | 8G     | 100G | Sidero Omni                                  |
+| Docker   | VM    | docker         | 192.168.80.88 | -            | 8     | 12G    | 100G |                                              |
+| k3s      | VM    | k3s-00         | 192.168.80.87 | -            | 8     | 12G    | 100G | Cerbot, Reverse Poxy, Authentik, MeshCentral |
+| talos    | VM    | talos-proto-00 | 192.168.80.89 | -            | 8     | 12G    | 100G | Cerbot, Reverse Poxy, Authentik, MeshCentral |
 
 ## Install /configure Proxmox
 
 1. disable enterprise repo and enable community repository
 1. add nfs iso storage from truenas
+1. `ssh-copy-id root@192.pve.ip.addr`
 1. `pveam update` to make LXC templates available
 1. create containers manually from debian template (ansible someday maybe)
 1. [create vm templates](https://pycvala.de/blog/proxmox/create-your-own-debian-12-cloud-init-template/) for Debian 12 / backports
@@ -81,9 +85,11 @@ vPro Domain: amt.bauer.mt
 ansible-galaxy install -r ./ansible/requirements.yml
 ansible-playbook ./ansible/vm/cloud-img-tasks.yml -i ./ansible/hosts.ini
 ansible-playbook ./ansible/vm/qemu-agent.yml -i ./ansible/hosts.ini
-ansible-playbook ./ansible/vm/users.yml -i ./ansible/hosts.ini
+OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES ansible-playbook ./ansible/vm/users.yml -i ./ansible/hosts.ini
 ansible-playbook ./ansible/vm/docker.yml -i ./ansible/hosts.ini
 ```
+
+- note: `OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES` may be needed if using a mac and [python is crashing](https://github.com/ansible/ansible/issues/76322#issuecomment-1003923574)
 
 # TODO ^ Make those proper roles
 
@@ -105,17 +111,78 @@ kubectl config view --flatten > one-config.yaml
 mv one-config ~/.kube/config
 ```
 
+## k3s vm
+
+1. Install k3s without servicelb, traefik (we'll install metallb, traefik later w/ helm)
+   `curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--cluster-init --disable=traefik --disable=servicelb --tls-san=k3s.bzn.bauer.mt" sh -s -`
+1. copy config from k3s server `/etc/rancher/k3s/k3s.config` to ~, then `scp ansible@<ip>:k3s.yaml ~/.kube/individual-configs/`
+1. modify cluster, user, context names in the config, then combine kubeconfigs
+
+```
+export KUBECONFIG=$(find /Users/brian/.kube/individual-configs -type f | tr '\n' ':')
+kubectl config view --flatten > config
+```
+
+### Configure traefik and automate certificate management.
+
+1. install metallb
+
+```
+helm repo add metallb https://metallb.github.io/metallb
+helm install metallb metallb/metallb --create-namespace --namespace=metallb
+kubectl apply -f k3s/metallb/lab-pool.yaml
+```
+
+1. Follow [this guide](https://technotim.live/posts/kube-traefik-cert-manager-le/). yaml files have been copied to this repository in `./k3s/`
+1. install traefik
+
+```
+kubectl create namespace traefik
+helm install --namespace=traefik traefik traefik/traefik --values=./k3s/traefik/values.yaml
+```
+
+1. create cert-manager namespace, apply crds, install cert-manager
+
+```
+kubectl create namespace cert-manager
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.9.1/cert-manager.crds.yaml
+helm install cert-manager jetstack/cert-manager --namespace cert-manager --values=./k3s/cert-manager/values.yaml --version v1.9.1
+```
+
+1. [Create API token for cloudflare](https://dash.cloudflare.com/profile/api-tokens) so Cerbot can complete DNS-01 challenge. Add token to `k3s/cert-manager/issuers/secret-cf-token.yaml` and apply: `kubectl apply -f k3s/cert-manager/issuers/secret-cf-token.yaml` Now delete the token from that file so you don't accidently commit it!
+1. Create the cluster issuer and then the certificate:
+
+```
+kubectl apply -f k3s/cert-manager/issuers/letsencrypt-production.yaml
+kubectl apply -f k3s/cert-manager/certificates/production/bauer-mt.yaml
+
+```
+
+1. check `kubectl get challenges` in a few minutes. When the challenge is no longer 'pending', you probably have the certificate.
+
+1. Set default certificate and headers `kubectl apply -f k3s/traefik/defaults`
+1. Deploy the dashboard `kubectl apply -f k3s/traefik/dashboard` and visit [https://traefik.k3s.bauer.mt](https://traefik.k3s.bauer.mt) to verify funcitonality.
+
+## Configure TrueNAS iscsi storage for k3s
+
+1. Install helm chart for [TrueNAS CSP](https://artifacthub.io/packages/helm/truenas-csp/truenas-csp) and follow [install instructions](https://github.com/hpe-storage/truenas-csp/blob/master/INSTALL.md#configure-csi-driver)
+
+```
+helm repo add truenas-csp https://hpe-storage.github.io/truenas-csp/
+helm repo update
+helm install k3s-truenas-csp truenas-csp/truenas-csp --create-namespace -n hpe-storage
+```
+
+1. Create `csi-volumes` dataset in TrueNAS
+1. Create an API key in truenas (cog in the upper right corner of GUI), then `kubectl apply -f k3s/truenas-csp/secret.yaml`
+1. [Configure TrueNAS iSCSI settings](https://github.com/hpe-storage/truenas-csp/blob/master/INSTALL.md#configure-truenasfreenas)
+1. Create the storageclass object `kubectl apply -f kubectl apply -f k3s/truenas-csp/storageclass.yaml`
+1. Storage is ready... time to [RTFM](https://scod.hpedev.io/csi_driver/using.html)...
+
 ## Talos linux
 
 1. Install Sidero Omni for network booting and lifecycle management of Talos k8s deployments
 1. do a lot of reading: https://a-cup-of.coffee/blog/talos/#introduction
-
-## Configure traefik and automate certificate management.
-
-1. Follow [this guide](https://technotim.live/posts/kube-traefik-cert-manager-le/). yaml files have been copied to this repository in `./manifests/prototype/...`
-1. install traefik with the values file at `./manifests/prototype/traefik/values.yaml` `helm install --namespace=traefik traefik traefik/traefik --values=./manifests/prototype/traefik/values.yaml`
-1. Set default certificate `kubectl apply -f manifests/prototype/traefik/dashboard/default-certificate-config.yaml`
-1. todo ... this again
 
 ## DNS
 
