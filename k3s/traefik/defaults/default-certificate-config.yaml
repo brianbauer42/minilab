@@ -6,4 +6,4 @@ metadata:
 
 spec:
   defaultCertificate:
-    secretName: k3s-bauer-mt-tls
+    secretName: bzn-bauer-mt-tls

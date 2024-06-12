@@ -1,0 +1,62 @@
+authentik:
+  secret_key: "<DELETED>"
+  # This sends anonymous usage-data, stack traces on errors and
+  # performance data to sentry.io, and is fully opt-in
+  email:
+    host: "smtp.mail.me.com"
+    port: 587
+    username: "brian.bauer@inventati.org"
+    password: "<DELETED>"
+    use_tls: true
+    use_ssl: false
+    timeout: 30
+    from: "homelab@bauer.mt"
+  error_reporting:
+    enabled: true
+  postgresql:
+    password: "<DELETED><POSTGRES>"
+
+server:
+  podLabels:
+    app: authentik
+  ingress:
+    #   # Specify kubernetes ingress controller class name
+    #   ingressClassName: traefik
+    enabled: false
+  #   hosts:
+  #     - authentik.bzn.bauer.mt
+  volumeMounts:
+    - name: certificate
+      mountPath: "/certs"
+      readOnly: true
+  volumes:
+    - name: certificate
+      secret:
+        secretName: authentik-bzn-bauer-mt
+        items:
+          - key: tls.crt
+            path: auth.bzn.bauer.mt.pem
+          - key: tls.key
+            path: auth.bzn.bauer.mt.key
+
+worker:
+  volumeMounts:
+    - name: certificate
+      mountPath: "/certs"
+      readOnly: true
+  volumes:
+    - name: certificate
+      secret:
+        secretName: authentik-bzn-bauer-mt
+        items:
+          - key: tls.crt
+            path: auth.bzn.bauer.mt.pem
+          - key: tls.key
+            path: auth.bzn.bauer.mt.key
+
+postgresql:
+  enabled: true
+  auth:
+    password: "<DELETED><POSTGRES>"
+redis:
+  enabled: true

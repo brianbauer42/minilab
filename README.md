@@ -37,9 +37,12 @@ Single node with 10gbe. Dual 2TB SSDs mirrored for cluster/app storage provided 
 | 192.168.70.0/24 | 2    | 1gb vpro ports on the mini pc      | UDMP        |
 | 192.168.80.0/24 | 3    | 2.5/10gb ports - data/prod network | Cheap 2.5gb |
 
-Service Domain: bzn.bauer.mt
-Management Domain mgmt.bauer.mt
-vPro Domain: amt.bauer.mt
+| purpose       | domain        |
+| ------------- | ------------- |
+| Service other | bzn.bauer.mt  |
+| Service k3s   | k3s.bauer.mt  |
+| Management    | mgmt.bauer.mt |
+| vPro          | amt.bauer.mt  |
 
 | Device Group | Hostname | Multigig IP   | 1gb admin IP  | AMT IP        | CPU       | Memory   |
 | ------------ | -------- | ------------- | ------------- | ------------- | --------- | -------- |
@@ -58,7 +61,7 @@ vPro Domain: amt.bauer.mt
 | Jellyfin | CT    | jellyfin       | 192.168.80.82 | -            | 10    | 16G    | 60G  |                                              |
 | Omni     | VM    | omni           | 192.168.80.80 | -            | 4     | 8G     | 100G | Sidero Omni                                  |
 | Docker   | VM    | docker         | 192.168.80.88 | -            | 8     | 12G    | 100G |                                              |
-| k3s      | VM    | k3s-00         | 192.168.80.87 | -            | 8     | 12G    | 100G | Cerbot, Reverse Poxy, Authentik, MeshCentral |
+| k3s      | VM    | k3s-00         | 192.168.80.87 | -            | 8     | 16G    | 100G | Cerbot, Reverse Poxy, Authentik, MeshCentral |
 | talos    | VM    | talos-proto-00 | 192.168.80.89 | -            | 8     | 12G    | 100G | Cerbot, Reverse Poxy, Authentik, MeshCentral |
 
 ## Install /configure Proxmox
@@ -129,7 +132,7 @@ kubectl config view --flatten > config
 
 ```
 helm repo add metallb https://metallb.github.io/metallb
-helm install metallb metallb/metallb --create-namespace --namespace=metallb
+helm install metallb metallb/metallb --create-namespace --namespace=metallb-system
 kubectl apply -f k3s/metallb/lab-pool.yaml
 ```
 
@@ -150,11 +153,11 @@ helm install cert-manager jetstack/cert-manager --namespace cert-manager --value
 ```
 
 1. [Create API token for cloudflare](https://dash.cloudflare.com/profile/api-tokens) so Cerbot can complete DNS-01 challenge. Add token to `k3s/cert-manager/issuers/secret-cf-token.yaml` and apply: `kubectl apply -f k3s/cert-manager/issuers/secret-cf-token.yaml` Now delete the token from that file so you don't accidently commit it!
-1. Create the cluster issuer and then the certificate:
+1. Create the cluster issuer and then the certificates:
 
 ```
 kubectl apply -f k3s/cert-manager/issuers/letsencrypt-production.yaml
-kubectl apply -f k3s/cert-manager/certificates/production/bauer-mt.yaml
+kubectl apply -f k3s/cert-manager/certificates/production/
 
 ```
 
@@ -176,8 +179,51 @@ helm install k3s-truenas-csp truenas-csp/truenas-csp --create-namespace -n hpe-s
 1. Create `csi-volumes` dataset in TrueNAS
 1. Create an API key in truenas (cog in the upper right corner of GUI), then `kubectl apply -f k3s/truenas-csp/secret.yaml`
 1. [Configure TrueNAS iSCSI settings](https://github.com/hpe-storage/truenas-csp/blob/master/INSTALL.md#configure-truenasfreenas)
-1. Create the storageclass object `kubectl apply -f kubectl apply -f k3s/truenas-csp/storageclass.yaml`
+1. Remove 'default' annotation from the local-path storage class `kubectl patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'`
+1. Create the storageclass object `kubectl apply -f k3s/truenas-csp/storageclass.yaml`
 1. Storage is ready... time to [RTFM](https://scod.hpedev.io/csi_driver/using.html)...
+
+## Authentik K3S (WIP)
+
+1. Follow [instructions](https://docs.goauthentik.io/docs/installation/kubernetes) to complete `k3s/authentik/values.yaml` file with generated passwords.
+1. Install Authentik using Helm:
+
+```
+helm repo add authentik https://charts.goauthentik.io
+helm repo update
+helm upgrade --install authentik authentik/authentik --create-namespace -n authentik -f k3s/authentik/values.yaml
+```
+
+1. Create the ingressRoute for authentik `kubectl apply -f k3s/authentik/manifests/ingressroute.yaml`
+1. Learn how to configure a SAML application...
+1. What kind of headers need to be forwarded from teh traefik reverse proxy?
+
+## [Dockge](https://dockge.kuma.pet/)
+
+```
+# Create directories that store your stacks and store Dockge's stack
+mkdir -p /opt/stacks /opt/dockge
+cd /opt/dockge
+
+# Download your compose.yaml
+curl "https://dockge.kuma.pet/compose.yaml?port=5001&stacksPath=%2Fopt%2Fstacks" --output compose.yaml
+
+# Start the Server
+docker compose up -d
+```
+
+Access on [port 5001](http://192.168.80.88:5001/)
+
+## Portainer
+
+```
+helm repo add portainer https://portainer.github.io/k8s/
+helm repo update
+helm upgrade --install --create-namespace -n portainer portainer portainer/portainer --set service.type=ClusterIP
+kubectl apply -f k3s/portainer/ingressroute.yaml`
+```
+
+Check [portainer.bzn.bauer.mt](portainer.bzn.bauer.mt) for functionality and follow instructions to add docker environments
 
 ## Talos linux
 

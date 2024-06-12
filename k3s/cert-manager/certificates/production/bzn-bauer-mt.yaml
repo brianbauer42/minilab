@@ -1,0 +1,15 @@
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: bzn-bauer-mt
+  namespace: default
+spec:
+  secretName: bzn-bauer-mt-tls
+  issuerRef:
+    name: letsencrypt-production
+    kind: ClusterIssuer
+  commonName: "*.bzn.bauer.mt"
+  dnsNames:
+    - "bzn.bauer.mt"
+    - "*.bzn.bauer.mt"

@@ -1,0 +1,17 @@
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: authentik-bzn-bauer-mt
+  namespace: authentik
+spec:
+  secretName: authentik-bzn-bauer-mt
+  issuerRef:
+    name: letsencrypt-production
+    kind: ClusterIssuer
+  commonName: "auth.bauer.mt"
+  dnsNames:
+    - "auth.bauer.mt"
+    - "authentik.bauer.mt"
+    - "auth.bzn.bauer.mt"
+    - "authentik.bzn.bauer.mt"

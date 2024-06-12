@@ -45,6 +45,14 @@
         groups: sudo
         append: yes
 
+    - name: Allow user to have passwordless sudo
+      lineinfile:
+        dest: /etc/sudoers
+        state: present
+        regexp: "^{{ username }} ALL=(ALL) NOPASSWD: ALL"
+        line: "{{ username }} ALL=(ALL) NOPASSWD: ALL"
+        validate: "visudo -cf %s"
+
   roles:
     - role: gantsign.oh-my-zsh
       users:
